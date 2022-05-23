@@ -1,18 +1,19 @@
-import {
-  dotPathToHash,
-  mergeHashes,
-  transferValues,
-  makeDefaultSort,
-} from './helpers'
 import { Transform } from 'stream'
 import eol from 'eol'
 import fs from 'fs'
-import Parser from './parser'
 import path from 'path'
 import VirtualFile from 'vinyl'
 import yaml from 'js-yaml'
 import i18next from 'i18next'
 import sortKeys from 'sort-keys'
+
+import {
+  dotPathToHash,
+  mergeHashes,
+  transferValues,
+  makeDefaultSort,
+} from './helpers.js'
+import Parser from './parser.js'
 
 export default class i18nTransform extends Transform {
   constructor(options = {}) {
@@ -108,6 +109,11 @@ export default class i18nTransform extends Transform {
 
     for (const entry of entries) {
       let key = entry.key
+
+      if (entry.keyPrefix) {
+        key = entry.keyPrefix + this.options.keySeparator + key
+      }
+
       const parts = key.split(this.options.namespaceSeparator)
 
       // make sure we're not pulling a 'namespace' out of a default value
@@ -147,10 +153,17 @@ export default class i18nTransform extends Transform {
       const catalog = {}
       const resetAndFlag = this.options.resetDefaultValueLocale === locale
 
-      let countWithPlurals = 0
-      let uniqueCount = this.entries.length
+      let uniqueCount = {}
+      let uniquePluralsCount = {}
 
       const transformEntry = (entry, suffix) => {
+        if (uniqueCount[entry.namespace] === undefined) {
+          uniqueCount[entry.namespace] = 0
+        }
+        if (uniquePluralsCount[entry.namespace] === undefined) {
+          uniquePluralsCount[entry.namespace] = 0
+        }
+
         const { duplicate, conflict } = dotPathToHash(entry, catalog, {
           suffix,
           locale,
@@ -163,16 +176,19 @@ export default class i18nTransform extends Transform {
         })
 
         if (duplicate) {
-          uniqueCount -= 1
           if (conflict === 'key') {
-            const warning = `Found translation key already mapped to a map or parent of new key already mapped to a string: ${entry.key}`
-            this.warn(warning)
+            this.warn(
+              `Found translation key already mapped to a map or parent of ` +
+                `new key already mapped to a string: ${entry.key}`
+            )
           } else if (conflict === 'value') {
-            const warning = `Found same keys with different values: ${entry.key}`
-            this.warn(warning)
+            this.warn(`Found same keys with different values: ${entry.key}`)
           }
         } else {
-          countWithPlurals += 1
+          uniqueCount[entry.namespace] += 1
+          if (suffix) {
+            uniquePluralsCount[entry.namespace] += 1
+          }
         }
       }
 
@@ -241,11 +257,11 @@ export default class i18nTransform extends Transform {
         transferValues(oldKeys, oldCatalog)
 
         if (this.options.verbose) {
-          console.log(`[${locale}] ${namespace}\n`)
+          console.log(`[${locale}] ${namespace}`)
           console.log(
-            `Unique keys: ${uniqueCount} (${countWithPlurals} with plurals)`
+            `Unique keys: ${uniqueCount[namespace]} (${uniquePluralsCount[namespace]} are plurals)`
           )
-          const addCount = countWithPlurals - mergeCount
+          const addCount = uniqueCount[namespace] - mergeCount
           console.log(`Added keys: ${addCount}`)
           console.log(`Restored keys: ${restoreCount}`)
           if (this.options.keepRemoved) {
@@ -256,11 +272,11 @@ export default class i18nTransform extends Transform {
           if (this.options.resetDefaultValueLocale) {
             console.log(`Reset keys: ${resetCount}`)
           }
-          console.log()
+          console.log('')
         }
 
         if (this.options.failOnUpdate) {
-          const addCount = countWithPlurals - mergeCount
+          const addCount = uniqueCount[namespace] - mergeCount
           if (addCount + restoreCount + oldCount !== 0) {
             this.parserHadUpdate = true
             continue

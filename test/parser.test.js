@@ -1,12 +1,14 @@
 import { assert, expect } from 'chai'
-import Vinyl from 'vinyl'
+import { fileURLToPath } from 'url'
 import fs from 'fs'
-import i18nTransform from '../src/transform'
 import path from 'path'
 import sinon from 'sinon'
+import Vinyl from 'vinyl'
+import i18nTransform from '../src/transform.js'
 
 const enLibraryPath = path.normalize('en/translation.json')
 const arLibraryPath = path.normalize('ar/translation.json')
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 describe('parser', () => {
   it('parses globally on multiple lines', (done) => {
@@ -326,6 +328,30 @@ describe('parser', () => {
     i18nextParser.end(fakeFile)
   })
 
+  it.only('does not overwrite the namespace file if it already exists', (done) => {
+    let resultContent
+    const i18nextParser = new i18nTransform({
+      locales: ['en'],
+      defaultNamespace: 'test_empty',
+    })
+    const fakeFile = new Vinyl({
+      contents: Buffer.from("t('key'); t('');"),
+      path: 'file.js',
+    })
+
+    i18nextParser.on('data', (file) => {
+      if (file.relative.endsWith(path.normalize('en/test_empty.json'))) {
+        resultContent = JSON.parse(file.contents)
+      }
+    })
+    i18nextParser.on('end', () => {
+      assert.deepEqual(resultContent, { key: '' })
+      done()
+    })
+
+    i18nextParser.end(fakeFile)
+  })
+
   it('applies withTranslation namespace globally', (done) => {
     let result
     const i18nextParser = new i18nTransform()
@@ -369,6 +395,35 @@ describe('parser', () => {
 
     i18nextParser.on('data', (file) => {
       if (file.relative.endsWith(path.normalize('en/test-namespace.json'))) {
+        result = JSON.parse(file.contents)
+      }
+    })
+    i18nextParser.on('end', () => {
+      assert.deepEqual(result, expected)
+      done()
+    })
+
+    i18nextParser.end(fakeFile)
+  })
+
+  it('applies useTranslation keyPrefix globally', (done) => {
+    let result
+    const i18nextParser = new i18nTransform()
+    const fakeFile = new Vinyl({
+      contents: fs.readFileSync(
+        path.resolve(__dirname, 'templating/keyPrefix-hook.jsx')
+      ),
+      path: 'file.jsx',
+    })
+    const expected = {
+      'test-prefix': {
+        foo: '',
+        bar: '',
+      },
+    }
+
+    i18nextParser.on('data', (file) => {
+      if (file.relative.endsWith(path.normalize('en/key-prefix.json'))) {
         result = JSON.parse(file.contents)
       }
     })
@@ -751,6 +806,81 @@ describe('parser', () => {
 
       afterEach(() => {
         console.log.restore()
+      })
+
+      it('logs stats unique keys per namespace', (done) => {
+        const i18nextParser = new i18nTransform({
+          verbose: true,
+          output: 'test/locales/$LOCALE/$NAMESPACE.json',
+          locales: ['en'],
+        })
+        const fakeFile = new Vinyl({
+          contents: Buffer.from(
+            `t('key', {
+              ns: 'namespace1',
+            })
+            t('key', {
+              ns: 'namespace1'
+            })
+            t('key2', {
+              ns: 'namespace1',
+              count: 1
+            })
+            t('key2', {
+              ns: 'namespace1',
+              count: 2
+            })
+            t('key', {
+              ns: 'namespace2',
+            })
+            `
+          ),
+          path: 'file.js',
+        })
+
+        i18nextParser.on('data', () => {})
+
+        i18nextParser.once('end', () => {
+          assert(console.log.calledWith('Unique keys: 3 (2 are plurals)')) // namespace1
+          assert(console.log.calledWith('Unique keys: 1 (0 are plurals)')) // namespace2
+          done()
+        })
+
+        i18nextParser.end(fakeFile)
+      })
+
+      it('logs added and removed keys', (done) => {
+        const i18nextParser = new i18nTransform({
+          verbose: true,
+          output: 'test/locales/$LOCALE/$NAMESPACE.json',
+          locales: ['en'],
+        })
+        const fakeFile = new Vinyl({
+          contents: Buffer.from(
+            `
+            t('test_log:was_present')
+            t('test_log:was_not_present')
+            t('test_log:was_present_but_not_plural', {
+              count: 1
+            })
+            t('test_log:was_not_present_and_plural', {
+              count: 1
+            })
+            t('test_log:was_present_and_plural_but_no_more')
+            `
+          ),
+          path: 'file.js',
+        })
+
+        i18nextParser.on('data', () => {})
+
+        i18nextParser.once('end', () => {
+          assert(console.log.calledWith('Added keys: 6'))
+          assert(console.log.calledWith('Removed keys: 3'))
+          done()
+        })
+
+        i18nextParser.end(fakeFile)
       })
 
       describe('with defaultResetLocale', () => {
@@ -2359,6 +2489,22 @@ describe('parser', () => {
 
       i18nextParser.on('warning', (message) => {
         assert.equal(message, 'Key is not a string literal: variable')
+        done()
+      })
+      i18nextParser.end(fakeFile)
+    })
+
+    it('emits a `warning` event if a namespace contains a variable', (done) => {
+      const i18nextParser = new i18nTransform({
+        output: 'test/locales/$LOCALE/$NAMESPACE.json',
+      })
+      const fakeFile = new Vinyl({
+        contents: Buffer.from('<Trans i18nKey={variable} />'),
+        path: 'file.jsx',
+      })
+
+      i18nextParser.on('warning', (message) => {
+        assert.equal(message, 'Namespace is not a string literal: variable')
         done()
       })
       i18nextParser.end(fakeFile)

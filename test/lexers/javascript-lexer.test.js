@@ -1,6 +1,5 @@
 import { assert } from 'chai'
-
-import JavascriptLexer from '../../src/lexers/javascript-lexer'
+import JavascriptLexer from '../../src/lexers/javascript-lexer.js'
 
 describe('JavascriptLexer', () => {
   it('extracts keys from translation components', (done) => {
@@ -213,6 +212,16 @@ describe('JavascriptLexer', () => {
         'const {t} = useTranslation("foo"); t("bar", {ns: "baz"});'
       assert.deepEqual(Lexer.extract(content), [
         { namespace: 'baz', key: 'bar', ns: 'baz' },
+      ])
+    })
+
+    it('extracts namespace with a custom hook', () => {
+      const Lexer = new JavascriptLexer({
+        namespaceFunctions: ['useCustomTranslationHook'],
+      })
+      const content = 'const {t} = useCustomTranslationHook("foo"); t("bar");'
+      assert.deepEqual(Lexer.extract(content), [
+        { namespace: 'foo', key: 'bar' },
       ])
     })
   })

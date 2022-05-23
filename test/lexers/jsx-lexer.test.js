@@ -1,5 +1,5 @@
 import { assert } from 'chai'
-import JsxLexer from '../../src/lexers/jsx-lexer'
+import JsxLexer from '../../src/lexers/jsx-lexer.js'
 
 describe('JsxLexer', () => {
   describe('<Interpolate>', () => {
@@ -264,6 +264,13 @@ describe('JsxLexer', () => {
         assert.deepEqual(Lexer.extract(content), [
           { key: 'first', count: '{count}' },
         ])
+        done()
+      })
+
+      it('does not extract variable identifier from i18nKey as key', (done) => {
+        const Lexer = new JsxLexer()
+        const content = '<Trans i18nKey={variable} />'
+        assert.deepEqual(Lexer.extract(content), [])
         done()
       })
 

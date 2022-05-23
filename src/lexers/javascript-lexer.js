@@ -1,5 +1,5 @@
-import BaseLexer from './base-lexer'
-import * as ts from 'typescript'
+import BaseLexer from './base-lexer.js'
+import ts from 'typescript'
 
 export default class JavascriptLexer extends BaseLexer {
   constructor(options = {}) {
@@ -7,6 +7,10 @@ export default class JavascriptLexer extends BaseLexer {
 
     this.callPattern = '(?<=^|\\s|\\.)' + this.functionPattern() + '\\(.*\\)'
     this.functions = options.functions || ['t']
+    this.namespaceFunctions = options.namespaceFunctions || [
+      'useTranslation',
+      'withTranslation',
+    ]
     this.attr = options.attr || 'i18nKey'
     this.parseGenerics = options.parseGenerics || false
     this.typeMap = options.typeMap || {}
@@ -43,6 +47,17 @@ export default class JavascriptLexer extends BaseLexer {
       return keys.map((entry) => ({
         ...entry,
         namespace: entry.namespace || this.defaultNamespace,
+      }))
+    }
+
+    return keys
+  }
+
+  setKeyPrefixes(keys) {
+    if (this.keyPrefix) {
+      return keys.map((key) => ({
+        ...key,
+        keyPrefix: this.keyPrefix,
       }))
     }
 
@@ -112,13 +127,29 @@ export default class JavascriptLexer extends BaseLexer {
     const entry = {}
 
     if (
-      (node.expression.escapedText === 'useTranslation' ||
-        node.expression.escapedText === 'withTranslation') &&
+      this.namespaceFunctions.includes(node.expression.escapedText) &&
       node.arguments.length
     ) {
       const { text, elements } = node.arguments[0]
+
+      // useTranslation
       if (text) {
         this.defaultNamespace = text
+        const optionsArgument = node.arguments[1]
+
+        if (
+          optionsArgument &&
+          optionsArgument.kind === ts.SyntaxKind.ObjectLiteralExpression
+        ) {
+          const node = optionsArgument.properties.find(
+            (p) => p.name.escapedText === 'keyPrefix'
+          )
+          if (node != null) {
+            const keyPrefixValue = node.initializer.text
+            this.keyPrefix = keyPrefixValue
+          }
+        }
+        // withTranslation
       } else if (elements && elements.length) {
         this.defaultNamespace = elements[0].text
       }

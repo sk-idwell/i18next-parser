@@ -1,5 +1,5 @@
-import JavascriptLexer from './javascript-lexer'
-import * as ts from 'typescript'
+import JavascriptLexer from './javascript-lexer.js'
+import ts from 'typescript'
 
 export default class JsxLexer extends JavascriptLexer {
   constructor(options = {}) {
@@ -55,7 +55,10 @@ export default class JsxLexer extends JavascriptLexer {
     )
     parseTree(sourceFile)
 
-    return this.setNamespaces(keys)
+    const keysWithNamespace = this.setNamespaces(keys)
+    const keysWithPrefixes = this.setKeyPrefixes(keysWithNamespace)
+
+    return keysWithPrefixes
   }
 
   jsxExtractor(node, sourceText) {
@@ -68,6 +71,15 @@ export default class JsxLexer extends JavascriptLexer {
       if (!attribute) {
         return undefined
       }
+
+      if (attribute.initializer.expression?.kind === ts.SyntaxKind.Identifier) {
+        this.emit(
+          'warning',
+          `Namespace is not a string literal: ${attribute.initializer.expression.text}`
+        )
+        return undefined
+      }
+
       return attribute.initializer.expression
         ? attribute.initializer.expression.text
         : attribute.initializer.text

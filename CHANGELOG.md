@@ -1,5 +1,31 @@
 # Changelog
 
+# 6.4.0
+
+- Fix a bug that was resetting a namespace when given an empty key #502
+
+# 6.3.0
+
+- Support keyPrefix of useTranslation hook #485 #486
+
+# 6.2.0
+
+- Fix stats of files added, removed and unique keys #546 #498 #489
+
+# 6.1.0
+
+- Add a `functionsNamespace` option to the Javascrip Lexer #512
+
+# 6.0.1
+
+- BREAKING: Drop support for Node 12
+
+# 6.0.0
+
+- BREAKING: Drop support for Node 13, 15. Add support for Node 18.
+- BREAKING: This package is now pure ESM
+- Update dependencies
+
 # 5.4.0
 
 - Set colors dependency to 1.4.0 #503

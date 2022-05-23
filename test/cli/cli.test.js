@@ -1,14 +1,17 @@
-import path from 'path'
 import { assert } from 'chai'
-import execa from 'execa'
+import { fileURLToPath } from 'url'
+import { execaCommand } from 'execa'
 import fs from 'fs-extra'
+import path from 'path'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 describe('CLI', function () {
   // test execution time depends on I/O
   this.timeout(0)
 
   it('works without options', async () => {
-    const subprocess = await execa.command('yarn test:cli')
+    const subprocess = await execaCommand('yarn test:cli')
 
     const enTranslation = await fs.readJson(
       path.resolve(__dirname, './locales/en/translation.json')
@@ -81,7 +84,7 @@ describe('CLI', function () {
 
   it('works with `--fail-on-warnings` option', async () => {
     try {
-      await execa.command('yarn test:cli --fail-on-warnings')
+      await execaCommand('yarn test:cli --fail-on-warnings')
     } catch (error) {
       assert.strictEqual(error.exitCode, 1)
       assert.include(
@@ -92,7 +95,7 @@ describe('CLI', function () {
   })
 
   it('works when no input found', async () => {
-    const subprocess = await execa.command(
+    const subprocess = await execaCommand(
       'yarn test:cli cli/**/*.{ts,jsx} --fail-on-warnings'
     )
 
@@ -101,7 +104,7 @@ describe('CLI', function () {
 
   it('works with `--fail-on-update` option', async () => {
     try {
-      await execa.command('yarn test:cli --fail-on-update')
+      await execaCommand('yarn test:cli --fail-on-update')
     } catch (error) {
       assert.strictEqual(error.exitCode, 1)
       assert.include(

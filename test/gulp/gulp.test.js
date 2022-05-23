@@ -1,11 +1,14 @@
-import path from 'path'
 import { assert } from 'chai'
-import sinon from 'sinon'
+import { pEvent } from 'p-event'
+import { fileURLToPath } from 'url'
 import fs from 'fs-extra'
-import pEvent from 'p-event'
 import gulp from 'gulp'
+import path from 'path'
+import sinon from 'sinon'
 import './gulpfile.js'
 import PluralRulesMock from '../Intl.PluralRules.mock.js'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 describe('gulp plugin', function () {
   // test execution time depends on I/O
@@ -43,6 +46,18 @@ describe('gulp plugin', function () {
     try {
       await fs.readJson(
         path.resolve(__dirname, './locales/en/test-namespace_old.json')
+      )
+    } catch (error) {
+      assert.strictEqual(error.code, 'ENOENT')
+    }
+
+    const enKeyPrefix = await fs.readJson(
+      path.resolve(__dirname, './locales/en/key-prefix.json')
+    )
+
+    try {
+      await fs.readJson(
+        path.resolve(__dirname, './locales/en/key-prefix_old.json')
       )
     } catch (error) {
       assert.strictEqual(error.code, 'ENOENT')
@@ -112,6 +127,12 @@ describe('gulp plugin', function () {
     assert.deepEqual(enNamespace, {
       'test-1': '',
       'test-2': '',
+    })
+    assert.deepEqual(enKeyPrefix, {
+      'test-prefix': {
+        foo: '',
+        bar: '',
+      },
     })
     assert.deepEqual(enTranslation, {
       fifth: 'bar',
